@@ -161,7 +161,7 @@ if st.session_state.history:
         for char in full_response:
             bot_response += char
             response_placeholder.markdown(f"<div class='input-text'>🤖Bot: {bot_response}</div>", unsafe_allow_html=True)
-            time.sleep(0.05)  # Adjust the speed of the typing simulation
+            #time.sleep(0.0003)  # Adjust the speed of the typing simulation
 
     st.markdown("</div>", unsafe_allow_html=True)
 

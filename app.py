@@ -10,14 +10,17 @@ from langchain_experimental.tools import PythonREPLTool
 from langchain.sql_database import SQLDatabase
 from langchain_openai import AzureChatOpenAI
 from langchain_groq import ChatGroq
-
+from langchain.memory import ConversationSummaryMemory
 from sqlalchemy import create_engine
 import pandas as pd
+import uuid
+from typing import List, Dict, Any
 
 # Define the model for the request body
 class PromptRequest(BaseModel):
     prompt: str
     model_name: str
+    
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -99,17 +102,24 @@ SELECT [death] FROM covidtracking WHERE state = 'TX' AND date LIKE '2020%'"
 
 """
 
+
+
+
 @app.post("/query")
 async def query_db(request: PromptRequest):
     prompt = request.prompt
     model_name = request.model_name
-    
     llm = ChatGroq(
         temperature=0,
         groq_api_key="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",
         model_name=model_name
     )
+    memory = ConversationSummaryMemory(llm=llm)
+    inputs = {"prompt": prompt}
+    context_window = memory.load_memory_variables(inputs)
+    conversation_context = f"the recent chat history {context_window['history']} , Answer the question: {prompt}."
 
+   
     # Use the hard-coded path for the CSV file
     csv_file_path = "PO.csv"
     df = pd.read_csv(csv_file_path).fillna(value=0)
@@ -139,15 +149,19 @@ async def query_db(request: PromptRequest):
         top_k=30,
         verbose=True
     )
-
+    
     try:
-        response = agent_executor_SQL.invoke(prompt)
+        response = agent_executor_SQL.invoke(conversation_context)
         response_text = response['output']
+        # Save the conversation context with the desired format
+        memory.save_context({"prompt": f"{prompt}"}, {"response": f"{response_text}"})
+
+
         return {"response": response_text}
     except Exception as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
+    
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
